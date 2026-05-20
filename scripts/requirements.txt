@@ -1,0 +1,6 @@
+pydicom>=2.4
+SimpleITK>=2.3
+numpy>=1.24
+matplotlib>=3.7
+scipy>=1.11
+scikit-image>=0.22
