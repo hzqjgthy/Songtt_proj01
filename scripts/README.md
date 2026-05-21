@@ -27,7 +27,8 @@ proj_01/
     ├── brainstem_segmentation.py    # [步骤 P0] 脑干分割（几何近似）
     ├── eloquent_zone_segmentation.py # [步骤 P1] 功能区分割（几何近似）
     ├── path_planning.py             # [步骤 4] 穿刺路径规划
-    ├── case_report.py                # [步骤 5] 病例综合报告 PDF
+    ├── narrative.py                  # [步骤 5] 路径 JSON → 自然语言手术方案
+    ├── case_report.py                # [步骤 5] 病例综合报告 PDF + plan.txt
     └── rename_legacy_garbled.py     # 辅助：批量修复历史文件名乱码
 ```
 
@@ -333,31 +334,50 @@ output_nifti/
 
 ---
 
-## 步骤 5：病例综合报告 PDF
+## 步骤 5：自然语言手术方案 + 病例综合报告 PDF
 
 ```powershell
 %PY% c:\Users\aippletian\Desktop\songtt\projs\proj_01\scripts\case_report.py
 ```
 
 **作用**
-- 不重新跑分割，仅消费上一步生成的 PNG / JSON，把每个病例的所有产物汇总成 PDF。
-- 一份病例一个 PDF，输出到 `patient_<PID>/<CT_stem>_report.pdf`。
-- 页面结构：
-  1. **封面**：患者 ID / CT 文件 / spacing / 体积概览（颅腔/脑/血肿/脑室/血管/脑干/功能区） / 路径规划参数 / CT preview / 多目标点列表
-  2. **路径规划主页**：`paths_overlay` + `paths_3d` + Top-N 路径表（含 `target_idx` / `target_role` / 入颅与目标 LPS 物理坐标 / 长度 / 角度 / 评分）+ 拒绝统计
-  3. **颅骨页**：`skull_overlay` + `skull_3d` + skull_stats
-  4. **脑+血肿页**：`brain_overlay` + `brain_3d` + brain_report.json 摘要
-  5. **脑室页**、**血管禁区页**、**脑干页**、**功能区页**
+- 不重新跑分割，仅消费上一步生成的 PNG / JSON。
+- **生成两个产物**：
+  - `*_plan.txt`：纯文本「自然语言手术方案」，医生可读，可直接打印
+  - `*_report.pdf`：完整 PDF 报告，封面 + 方案文字 + 各分割三视图 + 路径图
+- PDF 页面结构（A4 横向）：
+  1. **封面**：患者 ID / CT 文件 / spacing / 体积概览 / 路径规划参数 / CT preview / 多目标点列表
+  2. **手术方案（自然语言）**：从入颅点 / 目标点 / 进针长度 / 角度 / 操作步骤 / 备选方案 / 风险提示，全部翻译成中文文字
+  3. **路径规划主页**：`paths_overlay` + `paths_3d` + Top-N 路径表
+  4. **颅骨 / 脑+血肿 / 脑室 / 血管禁区 / 脑干 / 功能区** 各 1 页
+
+**自然语言方案样例**（节选自 `*_plan.txt`）：
+```
+二、推荐手术方案
+  ★ 推荐方案（Top-1，按【长度+角度】评分最优）
+     入颅点 (LPS mm) : (  +73.4,  -139.0,  -508.9)   位于 左额部
+     目标点 (LPS mm) : (  +38.1,  -151.2,  -509.1)   血肿主轴远端 A
+     进针长度        : 37.3 mm   (路径短，到达目标快)
+     入颅角度        : 19.0°（与颅骨外法线夹角）   (小角度斜行，常规入路可接受)
+     入颅骨厚        : 5 体素 ≈ 4.0 mm
+     ...
+  【操作步骤建议】
+    1. 体位与定位：依据 LPS 坐标系，将立体定向坐标原点对准 CT 原点；
+    2. 入颅：在 (+73.4, -139.0, -508.9) 钻孔，与外法线夹角 19°。
+    3. 进针：沿入颅点 → 目标点方向直线进针 37.3 mm，到达 血肿主轴远端 A。
+    4. 引流：建议沿血肿 PCA 长轴留置引流管，可参考其他目标点位置。
+```
 
 **常用参数**
 ```powershell
-%PY% scripts\case_report.py                          # 生成所有 *Hr40* 病例的 PDF（已存在则跳过）
+%PY% scripts\case_report.py                          # 生成所有 *Hr40* 病例的 PDF + plan.txt
 %PY% scripts\case_report.py --force                  # 覆盖已存在的 *_report.pdf
 %PY% scripts\case_report.py --pattern "*Hr40*S3_00000262.nii.gz"  # 只跑指定病例
 ```
 
 **产物**
-- `*_report.pdf`（每病例 ~2-3 MB，A4 横向，约 7 页）
+- `*_plan.txt`（每病例 ~3 KB，纯中文文本）
+- `*_report.pdf`（每病例 ~2-3 MB，A4 横向，约 8 页）
 
 ---
 
@@ -423,7 +443,8 @@ patient_<PID>/
 ├── CT_brain_0.80_Hr40_S3_<uid>_paths.json              # 步骤 4
 ├── CT_brain_0.80_Hr40_S3_<uid>_paths_overlay.png
 ├── CT_brain_0.80_Hr40_S3_<uid>_paths_3d.png
-└── CT_brain_0.80_Hr40_S3_<uid>_report.pdf              # 步骤 5：综合报告
+├── CT_brain_0.80_Hr40_S3_<uid>_plan.txt                # 步骤 5：自然语言手术方案
+└── CT_brain_0.80_Hr40_S3_<uid>_report.pdf              # 步骤 5：综合报告 PDF
 ```
 
 ---

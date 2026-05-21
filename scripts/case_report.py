@@ -61,6 +61,10 @@ try:
 except ImportError:
     print("[错误] 未安装 Pillow（matplotlib 依赖；conda 环境通常已装）", file=sys.stderr); raise
 
+# 自然语言手术方案
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from narrative import build_surgical_plan_text  # noqa: E402
+
 
 DEFAULT_INPUT = Path(__file__).resolve().parent.parent / "output_nifti"
 
@@ -364,6 +368,24 @@ def render_skull_page(pdf: PdfPages, assets: Dict) -> None:
     pdf.savefig(fig, dpi=160); plt.close(fig)
 
 
+# ---------- 页：自然语言手术方案 ----------
+def render_plan_text_page(pdf: PdfPages, assets: Dict, plan_text: str) -> None:
+    """把自然语言方案文本分页放入 PDF（一页若装不下自动换页）。"""
+    # A4 横向每页大约能放 50-55 行 8pt mono
+    LINES_PER_PAGE = 52
+    lines = plan_text.splitlines()
+    n_pages = max(1, (len(lines) + LINES_PER_PAGE - 1) // LINES_PER_PAGE)
+    for k in range(n_pages):
+        chunk = lines[k * LINES_PER_PAGE:(k + 1) * LINES_PER_PAGE]
+        fig = plt.figure(figsize=(11.69, 8.27))
+        suffix = f"  ({k+1}/{n_pages})" if n_pages > 1 else ""
+        fig.suptitle(f"手术方案（自然语言）— {assets['stem']}{suffix}",
+                     fontsize=13, y=0.97)
+        _add_text_axes(fig, [0.04, 0.03, 0.92, 0.90],
+                       "\n".join(chunk), fontsize=8, mono=True)
+        pdf.savefig(fig, dpi=160); plt.close(fig)
+
+
 # ---------- 病例 PDF 装配 ----------
 def build_case_report(ct: Path, force: bool = False) -> Optional[Path]:
     assets = collect_case_assets(ct)
@@ -378,8 +400,25 @@ def build_case_report(ct: Path, force: bool = False) -> Optional[Path]:
         print(f"  [跳过] 既无路径规划也无脑分割: {ct.name}")
         return None
 
+    # 生成自然语言方案 + 落盘 .txt
+    plan_text = build_surgical_plan_text(
+        patient_id=assets["patient_id"],
+        ct_filename=assets["ct_path"].name,
+        brain_report=_safe_json(assets["brain_report"]),
+        paths_json=_safe_json(assets["paths_json"]),
+        ventricle_stats=_safe_json(assets["ventricle_stats"]),
+        vessel_stats=_safe_json(assets["vessel_stats"]),
+        brainstem_stats=_safe_json(assets["brainstem_stats"]),
+        eloquent_stats=_safe_json(assets["eloquent_stats"]),
+    )
+    plan_txt = ct.parent / f"{assets['stem']}_plan.txt"
+    plan_txt.write_text(plan_text, encoding="utf-8")
+    print(f"  [OK] {plan_txt.name}  ({plan_txt.stat().st_size} B)")
+
     with PdfPages(out_pdf) as pdf:
         render_cover(pdf, assets)
+        # 紧跟封面之后插入"自然语言手术方案"页（医生最先看到的一页）
+        render_plan_text_page(pdf, assets, plan_text)
         if has_paths:
             render_paths_page(pdf, assets)
         # 颅骨/脑/脑室/血管/脑干/功能区
