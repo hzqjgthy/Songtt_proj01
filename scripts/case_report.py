@@ -40,7 +40,19 @@ try:
     from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib import font_manager
     _CJK_FONT = None
-    for _fname in ("Microsoft YaHei", "SimHei", "DengXian", "SimSun"):
+    for _font_path in (
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    ):
+        try:
+            if Path(_font_path).exists():
+                font_manager.fontManager.addfont(_font_path)
+        except Exception:
+            pass
+    for _fname in (
+        "Heiti TC", "Hiragino Sans GB", "PingFang SC",
+        "Arial Unicode MS", "Microsoft YaHei", "SimHei", "DengXian", "SimSun",
+    ):
         try:
             font_manager.findfont(_fname, fallback_to_default=False)
             plt.rcParams["font.sans-serif"] = [_fname]
@@ -49,10 +61,8 @@ try:
         except Exception:
             continue
     plt.rcParams["axes.unicode_minus"] = False
-    # 等宽 + CJK 回退族（数字列按 Consolas 等宽，中文回退到 CJK 字体避免 ?）
-    _MONO_FAMILY = ["Consolas", "Courier New"]
-    if _CJK_FONT:
-        _MONO_FAMILY.append(_CJK_FONT)
+    # PDF 中中文优先使用 CJK 字体；macOS/Linux 通常没有 Consolas。
+    _MONO_FAMILY = [_CJK_FONT, "Menlo", "DejaVu Sans Mono"] if _CJK_FONT else ["Menlo", "DejaVu Sans Mono"]
 except ImportError:
     print("[错误] 未安装 matplotlib", file=sys.stderr); raise
 
