@@ -668,6 +668,7 @@ def find_cases(input_dir: Path, ct_pattern: str) -> List[Dict[str, Path]]:
     cases: List[Dict[str, Path]] = []
     # 主 CT 体数据的命名特征：以系列号结尾（无 _mask/_brain_xxx_mask 等后缀）
     EXCLUDE_SUFFIXES = (
+        "_synthseg.nii.gz",
         "_mask.nii.gz", "_overlay.png", "_3d.png",
         "_preview.png", "_stats.txt", "_report.json",
     )

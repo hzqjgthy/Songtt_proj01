@@ -17,20 +17,60 @@ proj_01/
 ├── output_nifti/                # 流水线产物（运行后生成）
 │   ├── manifest.csv
 │   ├── patient_<PID>/...
+├── pipeline/                     # 新增：阶段/实现/配置驱动的编排层
+├── configs/
+│   ├── pipeline.logic.json       # 纯逻辑实现
+│   └── pipeline.synthseg.json    # SynthSeg 混合实现
 └── scripts/
     ├── requirements.txt
+    ├── run_pipeline.py              # 新增：统一流水线入口
+    ├── export_synthseg_masks.py     # 新增：SynthSeg 结果导出为项目内部 mask
     ├── dicom_to_nifti.py            # [步骤 1] DICOM → NIfTI
     ├── skull_segmentation.py        # [步骤 2] 颅骨分割
     ├── brain_hematoma_segmentation.py # [步骤 3] 颅腔/脑/血肿分割
     ├── ventricle_segmentation.py    # [步骤 C] 脑室分割
-    ├── vessel_risk_segmentation.py   # [步骤 A] 血管风险禁区生成
+    ├── vessel_risk_segmentation.py  # [步骤 A] 血管风险禁区生成
     ├── brainstem_segmentation.py    # [步骤 P0] 脑干分割（几何近似）
     ├── eloquent_zone_segmentation.py # [步骤 P1] 功能区分割（几何近似）
     ├── path_planning.py             # [步骤 4] 穿刺路径规划
-    ├── narrative.py                  # [步骤 5] 路径 JSON → 自然语言手术方案
-    ├── case_report.py                # [步骤 5] 病例综合报告 PDF + plan.txt
+    ├── narrative.py                 # [步骤 5] 路径 JSON → 自然语言手术方案
+    ├── case_report.py               # [步骤 5] 病例综合报告 PDF + plan.txt
     └── rename_legacy_garbled.py     # 辅助：批量修复历史文件名乱码
 ```
+
+### 0.1 配置驱动的新架构
+
+旧项目是“一组并列脚本 + README 手工串行执行”。现在新增了一层编排架构，把**阶段**和**实现方式**解耦：
+
+- `scripts/run_pipeline.py` 只负责读取配置并按顺序执行阶段
+- `pipeline/` 负责维护阶段顺序、实现注册和命令拼装
+- `configs/pipeline.logic.json` 让阶段全部走原有逻辑/几何实现
+- `configs/pipeline.synthseg.json` 让 `ventricle_segmentation`、`brainstem_segmentation` 改走 `SynthSeg` 推理导出
+
+这样后续切换实现时，只需要改配置文件中的 `implementation`，不需要改下游 `path_planning.py`、`narrative.py`、`case_report.py` 对文件命名的依赖。
+
+### 0.2 新入口用法
+
+查看纯逻辑模式的执行计划：
+
+```powershell
+python scripts/run_pipeline.py --config configs/pipeline.logic.json --dry-run
+```
+
+查看 SynthSeg 混合模式的执行计划：
+
+```powershell
+python scripts/run_pipeline.py --config configs/pipeline.synthseg.json --dry-run
+```
+
+说明：
+
+- 目前支持 `logic` / `synthseg` 切换的阶段是：`ventricle_segmentation`、`brainstem_segmentation`
+- `eloquent_zone_segmentation` 目前仍保留逻辑实现，等皮层标签映射稳定后再补 `synthseg` 实现
+- 配置中的 `python_executable` 应指向装好 `SimpleITK/nibabel/scipy` 的项目解释器
+- 配置中的 `freesurfer_command` 建议直接写绝对路径，例如 `/Applications/freesurfer/8.1.0/bin/mri_synthseg`
+- `pipeline.synthseg.json` 已启用 `run_output`，运行时会把指定病例复制成 `patient_<ID>_<YYYYMMDD_HHMMSS>`，再只在这些带时间戳的新目录中执行混合模式流程
+- 如需固定时间戳，可加 `--run-id 20260609_160225`；不传时自动使用当前时间
 
 ---
 

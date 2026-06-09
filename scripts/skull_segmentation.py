@@ -297,6 +297,8 @@ def find_inputs(input_arg: Path, pattern: str) -> List[Path]:
     for p in sorted(input_arg.rglob(pattern)):
         if p.name.endswith("_skull_mask.nii.gz"):
             continue
+        if p.name.endswith("_synthseg.nii.gz"):
+            continue
         files.append(p)
     return files
 

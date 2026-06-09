@@ -312,7 +312,7 @@ def save_3d(skull, brainstem, ventricle, hematoma, spacing, out_png, title, down
 # ---------- 主流程 ----------
 def find_cases(input_dir: Path, ct_pattern: str) -> List[Dict[str, Path]]:
     cases: List[Dict[str, Path]] = []
-    EXCLUDE = ("_mask.nii.gz", "_overlay.png", "_3d.png", "_preview.png", "_stats.txt", "_report.json")
+    EXCLUDE = ("_synthseg.nii.gz", "_mask.nii.gz", "_overlay.png", "_3d.png", "_preview.png", "_stats.txt", "_report.json")
     for ct in sorted(input_dir.rglob(ct_pattern)):
         if any(ct.name.endswith(s) for s in EXCLUDE): continue
         d = ct.parent

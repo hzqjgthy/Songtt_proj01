@@ -306,7 +306,7 @@ def save_3d(skull: np.ndarray, ventricle: np.ndarray, hematoma: Optional[np.ndar
 def find_cases(input_dir: Path, ct_pattern: str) -> List[Dict[str, Path]]:
     """需要 CT + skull + intracranial mask；hematoma 可选（仅用于可视化）。"""
     cases: List[Dict[str, Path]] = []
-    EXCLUDE = ("_mask.nii.gz", "_overlay.png", "_3d.png", "_preview.png", "_stats.txt", "_report.json")
+    EXCLUDE = ("_synthseg.nii.gz", "_mask.nii.gz", "_overlay.png", "_3d.png", "_preview.png", "_stats.txt", "_report.json")
     for ct in sorted(input_dir.rglob(ct_pattern)):
         if any(ct.name.endswith(s) for s in EXCLUDE):
             continue

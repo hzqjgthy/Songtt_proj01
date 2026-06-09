@@ -1,0 +1,115 @@
+{
+  "python_executable": "/Users/thy/miniforge3/envs/songtt_CT/bin/python",
+  "freesurfer_command": "/Applications/freesurfer/8.1.0/bin/mri_synthseg",
+  "stage_order": [
+    "dicom_to_nifti",
+    "skull_segmentation",
+    "brain_hematoma_segmentation",
+    "ventricle_segmentation",
+    "vessel_risk_segmentation",
+    "brainstem_segmentation",
+    "eloquent_zone_segmentation",
+    "path_planning",
+    "narrative",
+    "case_report"
+  ],
+  "synthseg": {
+    "threads": 8,
+    "cpu": true,
+    "ct": true,
+    "keepgeom": true,
+    "addctab": true,
+    "skip_if_exists": true
+  },
+  "run_output": {
+    "enabled": true,
+    "source_input": "output_nifti",
+    "patient_dirs": [
+      "patient_0099039449",
+      "patient_0100297683"
+    ]
+  },
+  "stages": {
+    "dicom_to_nifti": {
+      "enabled": false,
+      "implementation": "logic",
+      "args": {
+        "input": "头模CT",
+        "output": "output_nifti"
+      }
+    },
+    "skull_segmentation": {
+      "enabled": false,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*Hr60*.nii.gz"
+      }
+    },
+    "brain_hematoma_segmentation": {
+      "enabled": false,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "ventricle_segmentation": {
+      "enabled": true,
+      "implementation": "synthseg",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "vessel_risk_segmentation": {
+      "enabled": true,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "brainstem_segmentation": {
+      "enabled": true,
+      "implementation": "synthseg",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "eloquent_zone_segmentation": {
+      "enabled": true,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "path_planning": {
+      "enabled": true,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "narrative": {
+      "enabled": false,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz"
+      }
+    },
+    "case_report": {
+      "enabled": true,
+      "implementation": "logic",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz",
+        "force": true
+      }
+    }
+  }
+}

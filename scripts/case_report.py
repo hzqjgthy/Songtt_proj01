@@ -476,6 +476,7 @@ def build_case_report(ct: Path, force: bool = False) -> Optional[Path]:
 # ---------- 主流程 ----------
 def find_cts(input_dir: Path, pattern: str) -> List[Path]:
     EXCLUDE = (
+        "_synthseg.nii.gz",
         "_mask.nii.gz", "_overlay.png", "_3d.png",
         "_preview.png", "_stats.txt", "_report.json", "_paths.json",
     )

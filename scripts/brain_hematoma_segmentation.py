@@ -404,6 +404,8 @@ def find_pairs(input_dir: Path, ct_pattern: str) -> List[Tuple[Path, Path]]:
     """
     pairs: List[Tuple[Path, Path]] = []
     for ct in sorted(input_dir.rglob(ct_pattern)):
+        if ct.name.endswith("_synthseg.nii.gz"):
+            continue
         if "_mask" in ct.name or "_skull_" in ct.name:
             continue
         # 同目录找 skull_mask

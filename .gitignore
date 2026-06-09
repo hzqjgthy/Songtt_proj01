@@ -1,6 +1,7 @@
 # 原始 CT 数据（体积大，不上传）
 头模CT/
 output_nifti/
+ppt_output/
 
 # Python
 __pycache__/
