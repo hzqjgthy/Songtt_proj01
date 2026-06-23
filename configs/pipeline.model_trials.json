@@ -1,0 +1,58 @@
+{
+  "python_executable": "/Users/thy/miniforge3/envs/songtt_CT/bin/python",
+  "freesurfer_command": "/Applications/freesurfer/8.1.0/bin/mri_synthseg",
+  "stage_order": [
+    "synthsr_preprocess",
+    "ventricle_segmentation",
+    "brainstem_segmentation"
+  ],
+  "synthseg": {
+    "threads": 8,
+    "cpu": true,
+    "ct": true,
+    "keepgeom": true,
+    "addctab": true,
+    "skip_if_exists": true,
+    "flavor": "robust",
+    "output_suffix": "_synthseg_robust"
+  },
+  "run_output": {
+    "enabled": true,
+    "source_input": "output_nifti",
+    "patient_dirs": [
+      "patient_0100297683"
+    ]
+  },
+  "stages": {
+    "synthsr_preprocess": {
+      "enabled": true,
+      "implementation": "synthsr",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*5.00_Hr40*.nii.gz",
+        "synthsr_command": "/Applications/freesurfer/8.1.0/bin/mri_synthsr",
+        "threads": 8,
+        "cpu": true,
+        "ct": true
+      }
+    },
+    "ventricle_segmentation": {
+      "enabled": true,
+      "implementation": "synthseg",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz",
+        "no_3d": true
+      }
+    },
+    "brainstem_segmentation": {
+      "enabled": true,
+      "implementation": "synthseg",
+      "args": {
+        "input": "output_nifti",
+        "pattern": "*0.80_Hr40*.nii.gz",
+        "no_3d": true
+      }
+    }
+  }
+}

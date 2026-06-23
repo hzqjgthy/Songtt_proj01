@@ -30,6 +30,11 @@ import brainstem_segmentation as brainstem_logic
 DEFAULT_INPUT = Path(__file__).resolve().parent.parent / "output_nifti"
 EXCLUDE_SUFFIXES = (
     "_synthseg.nii.gz",
+    "_synthseg_robust.nii.gz",
+    "_synthseg_parc.nii.gz",
+    "_synthsr.nii.gz",
+    "_synthstrip_brain.nii.gz",
+    "_synthstrip_brain_mask.nii.gz",
     "_mask.nii.gz",
     "_overlay.png",
     "_3d.png",
@@ -40,6 +45,10 @@ EXCLUDE_SUFFIXES = (
 
 VENTRICLE_LABELS = {4, 5, 14, 15, 43, 44}
 BRAINSTEM_LABELS = {16}
+
+
+def is_source_ct(path: Path) -> bool:
+    return not any(path.name.endswith(suffix) for suffix in EXCLUDE_SUFFIXES)
 
 
 def freesurfer_env(command: str) -> Dict[str, str]:
@@ -110,6 +119,9 @@ def ensure_synthseg(
     ct: bool,
     keepgeom: bool,
     addctab: bool,
+    robust: bool,
+    parc: bool,
+    fast: bool,
     force: bool,
     skip_if_exists: bool,
 ) -> None:
@@ -117,8 +129,12 @@ def ensure_synthseg(
         return
 
     argv: List[str] = [command, "--i", str(ct_path), "--o", str(synthseg_path)]
-    vol_csv = synthseg_path.with_name(synthseg_path.name.replace("_synthseg.nii.gz", "_synthseg_volumes.csv"))
-    qc_csv = synthseg_path.with_name(synthseg_path.name.replace("_synthseg.nii.gz", "_synthseg_qc.csv"))
+    if synthseg_path.name.endswith(".nii.gz"):
+        seg_stem = synthseg_path.name[:-len(".nii.gz")]
+    else:
+        seg_stem = synthseg_path.stem
+    vol_csv = synthseg_path.with_name(f"{seg_stem}_volumes.csv")
+    qc_csv = synthseg_path.with_name(f"{seg_stem}_qc.csv")
     argv.extend(["--vol", str(vol_csv), "--qc", str(qc_csv)])
     if ct:
         argv.append("--ct")
@@ -128,15 +144,21 @@ def ensure_synthseg(
         argv.append("--keepgeom")
     if addctab:
         argv.append("--addctab")
+    if robust:
+        argv.append("--robust")
+    if parc:
+        argv.append("--parc")
+    if fast:
+        argv.append("--fast")
     if threads:
         argv.extend(["--threads", str(threads)])
     subprocess.run(argv, check=True, env=freesurfer_env(command))
 
 
-def find_cases(input_dir: Path, ct_pattern: str) -> List[Dict[str, Optional[Path]]]:
+def find_cases(input_dir: Path, ct_pattern: str, synthseg_output_suffix: str) -> List[Dict[str, Optional[Path]]]:
     cases: List[Dict[str, Optional[Path]]] = []
     for ct in sorted(input_dir.rglob(ct_pattern)):
-        if any(ct.name.endswith(suffix) for suffix in EXCLUDE_SUFFIXES):
+        if not is_source_ct(ct):
             continue
         stem = ct.name[:-len(".nii.gz")]
         d = ct.parent
@@ -148,7 +170,7 @@ def find_cases(input_dir: Path, ct_pattern: str) -> List[Dict[str, Optional[Path
                 "skull": skull,
                 "hematoma": d / f"{stem}_hematoma_mask.nii.gz" if (d / f"{stem}_hematoma_mask.nii.gz").exists() else None,
                 "ventricle": d / f"{stem}_ventricle_mask.nii.gz" if (d / f"{stem}_ventricle_mask.nii.gz").exists() else None,
-                "synthseg": d / f"{stem}_synthseg.nii.gz",
+                "synthseg": d / f"{stem}{synthseg_output_suffix}.nii.gz",
             }
         )
     return cases
@@ -160,7 +182,14 @@ def write_mask(mask: np.ndarray, ref_img: sitk.Image, out_path: Path) -> None:
     vent_logic.write_nifti(out_img, out_path)
 
 
-def export_ventricle(case: Dict[str, Optional[Path]], ct_img: sitk.Image, ct_arr: np.ndarray, seg_arr: np.ndarray, no_3d: bool) -> None:
+def export_ventricle(
+    case: Dict[str, Optional[Path]],
+    ct_img: sitk.Image,
+    ct_arr: np.ndarray,
+    seg_arr: np.ndarray,
+    no_3d: bool,
+    source_name: str,
+) -> None:
     ct_path = case["ct"]
     if ct_path is None:
         return
@@ -204,7 +233,7 @@ def export_ventricle(case: Dict[str, Optional[Path]], ct_img: sitk.Image, ct_arr
             )
 
     payload = {
-        "source": "synthseg",
+        "source": source_name,
         "label_ids": sorted(VENTRICLE_LABELS),
         "ct_file": ct_path.name,
         "spacing_mm": [round(float(v), 4) for v in spacing],
@@ -214,7 +243,14 @@ def export_ventricle(case: Dict[str, Optional[Path]], ct_img: sitk.Image, ct_arr
     stats_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def export_brainstem(case: Dict[str, Optional[Path]], ct_img: sitk.Image, ct_arr: np.ndarray, seg_arr: np.ndarray, no_3d: bool) -> None:
+def export_brainstem(
+    case: Dict[str, Optional[Path]],
+    ct_img: sitk.Image,
+    ct_arr: np.ndarray,
+    seg_arr: np.ndarray,
+    no_3d: bool,
+    source_name: str,
+) -> None:
     ct_path = case["ct"]
     if ct_path is None:
         return
@@ -263,7 +299,7 @@ def export_brainstem(case: Dict[str, Optional[Path]], ct_img: sitk.Image, ct_arr
             )
 
     payload = {
-        "source": "synthseg",
+        "source": source_name,
         "label_ids": sorted(BRAINSTEM_LABELS),
         "ct_file": ct_path.name,
         "spacing_mm": [round(float(v), 4) for v in spacing],
@@ -278,6 +314,18 @@ def main() -> int:
     parser.add_argument("--pattern", default="*Hr40*.nii.gz")
     parser.add_argument("--targets", nargs="+", choices=["ventricle", "brainstem"], required=True)
     parser.add_argument("--synthseg-command", default="mri_synthseg")
+    parser.add_argument(
+        "--synthseg-flavor",
+        choices=["standard", "robust", "parc"],
+        default="standard",
+        help="选择 SynthSeg 权重/任务：standard 为当前默认，robust 使用 robust 权重，parc 输出皮层分区标签。",
+    )
+    parser.add_argument(
+        "--synthseg-output-suffix",
+        default=None,
+        help="SynthSeg 输出后缀，默认按 flavor 选择：_synthseg / _synthseg_robust / _synthseg_parc。",
+    )
+    parser.add_argument("--fast", action="store_true")
     parser.add_argument("--threads", type=int, default=None)
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--ct", action="store_true")
@@ -293,13 +341,23 @@ def main() -> int:
         print(f"[错误] 不存在: {input_dir}", file=sys.stderr)
         return 2
 
-    cases = find_cases(input_dir, args.pattern)
+    default_suffix = {
+        "standard": "_synthseg",
+        "robust": "_synthseg_robust",
+        "parc": "_synthseg_parc",
+    }[args.synthseg_flavor]
+    synthseg_output_suffix = args.synthseg_output_suffix or default_suffix
+    source_name = "synthseg" if args.synthseg_flavor == "standard" else f"synthseg_{args.synthseg_flavor}"
+
+    cases = find_cases(input_dir, args.pattern, synthseg_output_suffix)
     if not cases:
         print("[错误] 未找到可处理的 CT 病例", file=sys.stderr)
         return 3
 
     print(f"[输入] {input_dir}")
     print(f"[目标] {', '.join(args.targets)}")
+    print(f"[模型] {source_name}")
+    print(f"[输出] *{synthseg_output_suffix}.nii.gz")
     print(f"[病例] {len(cases)}\n")
 
     for case in cases:
@@ -317,6 +375,9 @@ def main() -> int:
             ct=args.ct,
             keepgeom=args.keepgeom,
             addctab=args.addctab,
+            robust=args.synthseg_flavor == "robust",
+            parc=args.synthseg_flavor == "parc",
+            fast=args.fast,
             force=args.force_synthseg,
             skip_if_exists=args.skip_if_synthseg_exists,
         )
@@ -334,11 +395,11 @@ def main() -> int:
         seg_arr = sitk.GetArrayFromImage(seg_img).astype(np.int32)
 
         if "ventricle" in args.targets:
-            export_ventricle(case, ct_img, ct_arr, seg_arr, args.no_3d)
+            export_ventricle(case, ct_img, ct_arr, seg_arr, args.no_3d, source_name)
             case["ventricle"] = ct_path.parent / f"{ct_path.name[:-len('.nii.gz')]}_ventricle_mask.nii.gz"
             print("  -> ventricle mask exported")
         if "brainstem" in args.targets:
-            export_brainstem(case, ct_img, ct_arr, seg_arr, args.no_3d)
+            export_brainstem(case, ct_img, ct_arr, seg_arr, args.no_3d, source_name)
             print("  -> brainstem mask exported")
         print("")
     return 0

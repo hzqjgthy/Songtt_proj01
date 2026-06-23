@@ -29,6 +29,7 @@ SCRIPT_MAP: Dict[Tuple[str, str], str] = {
     ("path_planning", "logic"): "scripts/path_planning.py",
     ("narrative", "logic"): "scripts/narrative.py",
     ("case_report", "logic"): "scripts/case_report.py",
+    ("synthsr_preprocess", "synthsr"): "scripts/run_synthsr_preprocess.py",
     ("ventricle_segmentation", "synthseg"): "scripts/export_synthseg_masks.py",
     ("brainstem_segmentation", "synthseg"): "scripts/export_synthseg_masks.py",
 }
@@ -73,6 +74,9 @@ def build_stage_command(cfg: PipelineConfig, stage_name: str, stage_cfg: StageCo
             "keepgeom": cfg.synthseg.get("keepgeom", True),
             "addctab": cfg.synthseg.get("addctab", True),
             "skip_if_synthseg_exists": cfg.synthseg.get("skip_if_exists", True),
+            "synthseg_flavor": cfg.synthseg.get("flavor", "standard"),
+            "synthseg_output_suffix": cfg.synthseg.get("output_suffix"),
+            "fast": cfg.synthseg.get("fast", False),
         }
         _append_cli_args(argv, synthseg_defaults)
 
